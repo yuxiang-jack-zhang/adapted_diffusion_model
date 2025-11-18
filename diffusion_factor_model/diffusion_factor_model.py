@@ -1033,19 +1033,19 @@ class GaussianDiffusion(Module):
                 x_self_cond = self.model_predictions(x, t).pred_x_start
                 x_self_cond.detach_()
 
-        # reshape before feeding into model
-        h, w = self.image_size
-        x = x.reshape(-1, 1, h, w)
+        # # reshape before feeding into model
+        # h, w = self.image_size
+        # x = x.reshape(-1, 1, h, w)
 
         # predict and take gradient step
         model_out = self.model(x, t, i, x_self_cond)
-        model_out = model_out.view(model_out.size(0), -1)
-        model_out = model_out * M
+        # model_out = model_out.view(model_out.size(0), -1)
+        # model_out = model_out * M
 
         if self.objective == 'pred_noise':
-            target = noise * M
+            target = noise[M == 1].reshape(-1, 1)
         elif self.objective == 'pred_x0':
-            target = x_start * M
+            target = x_start[M == 1].reshape(-1, 1)
         elif self.objective == 'pred_v':
             v = self.predict_v(x_start, t, noise)
             target = v

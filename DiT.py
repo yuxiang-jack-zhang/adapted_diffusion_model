@@ -115,9 +115,9 @@ class DiTBlock(nn.Module):
             nn.Linear(hidden_size, 6 * hidden_size, bias=True)
         )
 
-    def forward(self, x, c):
+    def forward(self, x, c, M):
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.adaLN_modulation(c).chunk(6, dim=1)
-        x = x + gate_msa.unsqueeze(1) * self.attn(modulate(self.norm1(x), shift_msa, scale_msa))
+        x = x + gate_msa.unsqueeze(1) * self.attn(modulate(self.norm1(x), shift_msa, scale_msa), attn_mask=M)
         x = x + gate_mlp.unsqueeze(1) * self.mlp(modulate(self.norm2(x), shift_mlp, scale_mlp))
         return x
 
@@ -141,6 +141,25 @@ class FinalLayer(nn.Module):
         x = self.linear(x)
         return x
 
+class RegressionHead(nn.Module):
+    """
+    Regress output from FinalLayer to predict noise
+    """
+    def __init__(self, hidden_dim, output_dim=1):
+        super().__init__()
+        
+        # 1. Intermediate Layer (Expands or processes features)
+        self.intermediate = nn.Linear(hidden_dim, hidden_dim)
+        self.act = nn.SiLU() # or GELU
+        # 2. The New Final Layer (Projects to scalar)
+        self.final_proj = nn.Linear(hidden_dim, output_dim)
+
+    def forward(self, x):
+        x = self.intermediate(x)
+        x = self.act(x)
+        x = self.final_proj(x)
+        return x
+
 
 class DiT(nn.Module):
     """
@@ -158,6 +177,7 @@ class DiT(nn.Module):
         class_dropout_prob=0.1,
         num_classes=1000,
         learn_sigma=True,
+        out_size=1
     ):
         super().__init__()
         self.learn_sigma = learn_sigma
@@ -165,6 +185,7 @@ class DiT(nn.Module):
         self.out_channels = in_channels * 2 if learn_sigma else in_channels
         self.patch_size = patch_size
         self.num_heads = num_heads
+        self.input_size = input_size
 
         self.x_embedder = PatchEmbed(input_size, patch_size, in_channels, hidden_size, bias=True)
         self.t_embedder = TimestepEmbedder(hidden_size)
@@ -177,6 +198,7 @@ class DiT(nn.Module):
             DiTBlock(hidden_size, num_heads, mlp_ratio=mlp_ratio) for _ in range(depth)
         ])
         self.final_layer = FinalLayer(hidden_size, patch_size, self.out_channels)
+        self.regression_head = RegressionHead(input_size[0] * input_size[1], out_size)
         self.initialize_weights()
 
     def initialize_weights(self):
@@ -216,6 +238,12 @@ class DiT(nn.Module):
         nn.init.constant_(self.final_layer.linear.weight, 0)
         nn.init.constant_(self.final_layer.linear.bias, 0)
 
+        # Zero-out regression layer:
+        nn.init.constant_(self.regression_head.intermediate.weight, 0)
+        nn.init.constant_(self.regression_head.intermediate.bias, 0)
+        nn.init.constant_(self.regression_head.final_proj.weight, 0)
+        nn.init.constant_(self.regression_head.final_proj.bias, 0)
+
     def unpatchify(self, x):
         """
         x: (N, T, patch_size**2 * C)
@@ -238,6 +266,9 @@ class DiT(nn.Module):
         t: (N,) tensor of diffusion timesteps
         y: (N,) tensor of class labels
         """
+        h, w = self.input_size
+        x = x.reshape(-1, 1, h, w)
+
         x = self.x_embedder(x) + self.pos_embed  # (N, T, D), where T = H * W / patch_size ** 2
         t = self.t_embedder(t)                   # (N, D)
         i = self.t_embedder(i)                   # (N, D)
@@ -247,9 +278,12 @@ class DiT(nn.Module):
             c = c + y                                # (N, D)
                                             # for unditional generation
         for block in self.blocks:
-            x = block(x, c)                      # (N, T, D)
+            x = block(x, c, M)                      # (N, T, D)
         x = self.final_layer(x, c)                # (N, T, patch_size ** 2 * out_channels)
-        x = self.unpatchify(x)                   # (N, out_channels, H, W)
+        x = self.unpatchify(x)                   # (N, out_channels, H, W) 
+
+        x = x.view(x.size(0), -1)
+        x = self.regression_head(x)
         return x
 
     def forward_with_cfg(self, x, t, y, cfg_scale):
