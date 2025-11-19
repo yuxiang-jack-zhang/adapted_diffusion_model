@@ -10,34 +10,12 @@ import gc
 import argparse
 import time
 
-from diffusion_factor_model.diffusion_factor_model import Unet, GaussianDiffusion, Trainer
+from diffusion_factor_model.diffusion_factor_model import (
+    ConditionalTransformer,
+    SequentialGaussianDiffusion,
+    Trainer,
+)
 import config.config as config
-
-def get_dim_mults_for_size(height, width):
-    """
-    Determine appropriate dimension multipliers for UNet based on input dimensions.
-    The dimensions must be divisible by the maximum downsampling factor.
-    
-    Args:
-        height: Height of input
-        width: Width of input
-        
-    Returns:
-        Tuple of dimension multipliers suitable for the input size
-    """
-    # Calculate the maximum downsampling factor possible
-    min_dim = min(height, width)
-    
-    if min_dim >= 32:
-        return config.DIM_MULTS_LARGE  # Standard for large inputs
-    elif min_dim >= 16:
-        return config.DIM_MULTS_MEDIUM  # For medium inputs
-    elif min_dim >= 8:
-        return config.DIM_MULTS_SMALL   # For small inputs
-    elif min_dim >= 4:
-        return config.DIM_MULTS_TINY    # For very small inputs
-    else:
-        return config.DIM_MULTS_MINIMAL # Minimal case
 
 def train_model(data_path, seed=None, num_samples=None, gpu_id=0, epochs=None, save_timesteps=None):
     """
@@ -80,47 +58,18 @@ def train_model(data_path, seed=None, num_samples=None, gpu_id=0, epochs=None, s
         data_np = data_np[:num_samples]
         print(f"Using {num_samples} samples from the data")
     
-    # Determine data dimensions and reshape strategy
-    if len(data_shape) == 2:
-        # data (samples, features) - reshape to 2D format
-        samples, features = data_shape
-        
-        # Try to make the image as square as possible
-        width = 2**(int(np.log2(features)) // 2)
-        height = features // width
-        
-        if height * width != features:
-            # If not perfectly divisible, use a simple reshape
-            height, width = 1, features
-        
-        # Reshape data to [samples, 1, height, width]
-        data = torch.from_numpy(data_np).float()
-        if data.shape[1] != features:
-            print(f"Warning: Data dimension ({data.shape[1]}) doesn't match expected features ({features})")
-        
-        data = data.reshape(-1, 1, height, width)
-        print(f"Reshaped 2D data to: {data.shape} with dimensions [batch, channels, height={height}, width={width}]")
-        
-    elif len(data_shape) == 3:
-        # data (samples, height, width) - add channel dimension
-        samples, height, width = data_shape
-        
-        # Convert to tensor and add channel dimension
-        data = torch.from_numpy(data_np).float()
-        data = data.unsqueeze(1)  # Add channel dimension [samples, 1, height, width]
-        print(f"Reshaped 3D data to: {data.shape} with dimensions [batch, channels, height={height}, width={width}]")
-        
-    else:
-        raise ValueError(f"Unsupported data shape: {data_shape}, expected 2D or 3D array")
-    
-    # Get appropriate dimension multipliers for UNet
-    dim_mults = get_dim_mults_for_size(height, width)
-    print(f"Using dimension multipliers: {dim_mults} for input size ({height}, {width})")
-    
-    # Calculate maximum downsampling factor
-    max_downsample = 2**(len(dim_mults)-1) if len(dim_mults) > 0 else 1
-    print(f"Maximum downsampling factor: {max_downsample}")
-    
+    # Ensure data has shape [samples, sequence_length]
+    if data_np.ndim == 1:
+        data_np = data_np.reshape(1, -1)
+        print("Input data reshaped to 2D with batch dimension 1")
+    elif data_np.ndim > 2:
+        data_np = data_np.reshape(data_np.shape[0], -1)
+        print(f"Flattened high-dimensional data to shape: {data_np.shape}")
+
+    data = torch.from_numpy(data_np).float()
+    samples, seq_len = data.shape
+    print(f"Using sequence data with length {seq_len} and {samples} samples")
+
     # Create directories for this experiment
     model_dir = os.path.join(config.MODELS_DIR, exp_id)
     sample_dir = os.path.join(config.SAMPLES_DIR, exp_id)
@@ -128,33 +77,32 @@ def train_model(data_path, seed=None, num_samples=None, gpu_id=0, epochs=None, s
     os.makedirs(sample_dir, exist_ok=True)
     
     # Create dataset
-    data_mean = data.mean(dim=0, keepdim=True)[0]
-    data_std = data.std(dim=0, keepdim=True)[0]
-    data = (data - data_mean) / data_std
-    dataset = TensorDataset(data)
-    
-    # Calculate latent dimension (total number of features)
-    latent_dim = height * width
-    
+    data_mean = data.mean(dim=0, keepdim=True)
+    data_std = data.std(dim=0, keepdim=True)
+    data_std = torch.where(data_std == 0, torch.ones_like(data_std), data_std)
+    normalized_data = (data - data_mean) / data_std
+    dataset = TensorDataset(normalized_data)
+
     # Use epochs from argument or config
     if epochs is None:
         epochs = config.EPOCHS
-    
-    # Initialize model with appropriate dimension multipliers
-    model = Unet(
-        dim=config.MODEL_DIM,
-        channels=config.MODEL_CHANNELS,
-        filter_size=config.MODEL_FILTER_SIZE,
-        dim_mults=dim_mults  # Use appropriate multipliers for this input size
+
+    # Initialize conditional transformer for sequential diffusion
+    model = ConditionalTransformer(
+        seq_len=seq_len,
+        dim=config.TRANSFORMER_DIM,
+        depth=config.TRANSFORMER_LAYERS,
+        heads=config.TRANSFORMER_HEADS,
+        ff_mult=config.TRANSFORMER_FF_MULT,
+        dropout=config.TRANSFORMER_DROPOUT,
     )
-    
+
     print("Model initialized")
-    
-    # Initialize diffusion process with proper image size
-    diffusion = GaussianDiffusion(
+
+    # Initialize sequential diffusion process
+    diffusion = SequentialGaussianDiffusion(
         model,
-        image_size=(height, width),  # Use our reshaped dimensions
-        latent_dim=latent_dim,
+        seq_len=seq_len,
         timesteps=config.TIMESTEPS,
         objective=config.OBJECTIVE,
         beta_schedule=config.BETA_SCHEDULE,
@@ -204,8 +152,12 @@ def train_model(data_path, seed=None, num_samples=None, gpu_id=0, epochs=None, s
     for i in range(sample_batches):
         # Pass save_timesteps parameter to sample method for early stopping evaluation
         samples = diffusion.sample(batch_size=samples_per_batch, save_timesteps=save_timesteps)
-        samples = samples.view(samples.size(0), -1).cpu().numpy()
-        samples = samples * data_std.view(-1).cpu().numpy() + data_mean.view(-1).cpu().numpy()
+        if samples.dim() == 3:
+            # (batch, snapshots, seq_len)
+            scaled = samples * data_std.unsqueeze(1) + data_mean.unsqueeze(1)
+        else:
+            scaled = samples * data_std + data_mean
+        samples = scaled.reshape(scaled.size(0), -1).cpu().numpy()
         
         sample_file = os.path.join(sample_dir, f"sample_batch{i+1}.npy")
         np.save(sample_file, samples)
