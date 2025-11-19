@@ -78,6 +78,35 @@ def train_model(
         print(f"Flattened high-dimensional data to shape: {data_np.shape}")
 
     data = torch.from_numpy(data_np).float()
+    total_seq_len = data.shape[1]
+
+    # Determine sampling/training window
+    window_start = sample_window_start
+    if window_start is None:
+        window_start = config.SAMPLE_WINDOW_START
+    window_start = max(0, int(window_start))
+
+    window_length = sample_window_length
+    if window_length is None:
+        window_length = config.SAMPLE_WINDOW_LENGTH
+    if window_length is None:
+        window_end = total_seq_len
+    else:
+        window_end = min(total_seq_len, window_start + max(1, int(window_length)))
+
+    if window_start >= total_seq_len:
+        raise ValueError(
+            f"Sampling window start {window_start} exceeds sequence length {total_seq_len}"
+        )
+    if window_end - window_start <= 0:
+        raise ValueError("Sampling window must include at least one index")
+
+    if window_start != 0 or window_end != total_seq_len:
+        print(
+            f"Restricting training data to indices [{window_start}, {window_end}) out of {total_seq_len}"
+        )
+
+    data = data[:, window_start:window_end]
     samples, seq_len = data.shape
     print(f"Using sequence data with length {seq_len} and {samples} samples")
 
@@ -86,7 +115,7 @@ def train_model(
     sample_dir = os.path.join(config.SAMPLES_DIR, exp_id)
     os.makedirs(model_dir, exist_ok=True)
     os.makedirs(sample_dir, exist_ok=True)
-    
+
     # Create dataset
     data_mean = data.mean(dim=0, keepdim=True)
     data_std = data.std(dim=0, keepdim=True)
@@ -122,25 +151,6 @@ def train_model(
     
     print("Diffusion process initialized")
 
-    # Determine sampling window
-    window_start = sample_window_start
-    if window_start is None:
-        window_start = config.SAMPLE_WINDOW_START
-    window_start = max(0, int(window_start))
-
-    window_length = sample_window_length
-    if window_length is None:
-        window_length = config.SAMPLE_WINDOW_LENGTH
-    if window_length is None:
-        window_end = seq_len
-    else:
-        window_end = min(seq_len, window_start + max(1, int(window_length)))
-
-    if window_start >= seq_len:
-        raise ValueError(f"Sampling window start {window_start} exceeds sequence length {seq_len}")
-
-    print(f"Sampling window configured to indices [{window_start}, {window_end})")
-    
     # Initialize Trainer with custom epochs and optional save_timesteps for early stopping
     trainer = Trainer(
         diffusion,
@@ -185,8 +195,8 @@ def train_model(
         samples = diffusion.sample(
             batch_size=samples_per_batch,
             save_timesteps=save_timesteps,
-            start_idx=window_start,
-            end_idx=window_end,
+            start_idx=0,
+            end_idx=seq_len,
             show_progress=True,
             progress_desc=progress_desc,
         )
