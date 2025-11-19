@@ -1,5 +1,6 @@
 import math
 import copy
+import warnings
 from pathlib import Path
 from random import random
 from functools import partial
@@ -472,8 +473,11 @@ class ConditionalTransformer(Module):
         mask = mask.masked_fill(mask == 1, float('-inf'))
         self.register_buffer('causal_mask', mask)
         self.dropout = nn.Dropout(dropout)
+        # Small prediction head so representation and scalar output can live in different spaces
         self.output = nn.Sequential(
             nn.LayerNorm(dim),
+            nn.Linear(dim, dim),
+            nn.SiLU(),
             nn.Linear(dim, 1)
         )
 
@@ -1223,10 +1227,18 @@ class SequentialGaussianDiffusion(Module):
         show_progress=False,
         progress_desc=None,
     ):
+        if save_timesteps is not None:
+            warnings.warn(
+                "Sequential sampling currently ignores `save_timesteps`; only the fully denoised sequences are returned.",
+                stacklevel=2,
+            )
+        if return_all_timesteps:
+            warnings.warn(
+                "Sequential sampling does not expose intermediate histories; returning only the final sequences.",
+                stacklevel=2,
+            )
+
         sequences = torch.zeros(batch_size, self.seq_len, device=self.device)
-        save_set = set(save_timesteps) if save_timesteps is not None else None
-        saved = [] if save_set else None
-        history = [] if return_all_timesteps else None
 
         if end_idx is None:
             end_idx = self.seq_len
@@ -1260,23 +1272,10 @@ class SequentialGaussianDiffusion(Module):
                     noise = torch.randn_like(x_t)
                     x_t = model_mean + (0.5 * log_variance).exp() * noise
 
-                if save_set and t in save_set:
-                    snapshot = sequences.clone()
-                    snapshot[:, pos] = x_t
-                    saved.append(snapshot)
-
             sequences[:, pos] = x_t
-            if return_all_timesteps:
-                history.append(sequences.clone())
             if show_progress:
                 iterator.set_postfix(index=pos)
 
-        if save_set:
-            if len(saved) == 0:
-                return sequences.unsqueeze(1)
-            return torch.stack(saved, dim=1)
-        if return_all_timesteps:
-            return torch.stack(history, dim=1)
         return sequences
 
 class WarmUpCosineAnnealingWarmRestarts:
