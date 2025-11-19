@@ -115,9 +115,9 @@ class DiTBlock(nn.Module):
             nn.Linear(hidden_size, 6 * hidden_size, bias=True)
         )
 
-    def forward(self, x, c, M):
+    def forward(self, x, c, attn_mask):
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.adaLN_modulation(c).chunk(6, dim=1)
-        x = x + gate_msa.unsqueeze(1) * self.attn(modulate(self.norm1(x), shift_msa, scale_msa), attn_mask=M)
+        x = x + gate_msa.unsqueeze(1) * self.attn(modulate(self.norm1(x), shift_msa, scale_msa), attn_mask)
         x = x + gate_mlp.unsqueeze(1) * self.mlp(modulate(self.norm2(x), shift_mlp, scale_mlp))
         return x
 
@@ -266,8 +266,11 @@ class DiT(nn.Module):
         t: (N,) tensor of diffusion timesteps
         y: (N,) tensor of class labels
         """
-        h, w = self.input_size
-        x = x.reshape(-1, 1, h, w)
+        _, h = x.shape
+        x = x.reshape(-1, 1, h, 1)
+
+        attn_mask = (torch.arange(h, device=x.device).unsqueeze(0) > i.unsqueeze(1))
+        attn_mask = attn_mask.unsqueeze(1).unsqueeze(1)
 
         x = self.x_embedder(x) + self.pos_embed  # (N, T, D), where T = H * W / patch_size ** 2
         t = self.t_embedder(t)                   # (N, D)
@@ -278,7 +281,7 @@ class DiT(nn.Module):
             c = c + y                                # (N, D)
                                             # for unditional generation
         for block in self.blocks:
-            x = block(x, c, M)                      # (N, T, D)
+            x = block(x, c, attn_mask)                      # (N, T, D)
         x = self.final_layer(x, c)                # (N, T, patch_size ** 2 * out_channels)
         x = self.unpatchify(x)                   # (N, out_channels, H, W) 
 

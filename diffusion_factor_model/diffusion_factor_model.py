@@ -999,7 +999,7 @@ class GaussianDiffusion(Module):
 
         # now zero out all positions after i  (enforcing causality)
         
-        x_t = x_t * causal_mask
+        # x_t = x_t * causal_mask
 
         return x_t
     

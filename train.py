@@ -94,13 +94,15 @@ def train_model(data_path, seed=None, num_samples=None, num_features=None, gpu_i
         # data (samples, features) - reshape to 2D format
         samples, features = data_shape
         
-        # Try to make the image as square as possible
-        width = 2**(int(np.log2(features)) // 2)
-        height = features // width
+        # # Try to make the image as square as possible
+        # width = 2**(int(np.log2(features)) // 2)
+        # height = features // width
         
-        if height * width != features:
-            # If not perfectly divisible, use a simple reshape
-            height, width = 1, features
+        # if height * width != features:
+        #     # If not perfectly divisible, use a simple reshape
+        #     height, width = 1, features
+        height, width = features, 1
+
         
         # Reshape data to [samples, 1, height, width]
         data = torch.from_numpy(data_np).float()
@@ -164,7 +166,7 @@ def train_model(data_path, seed=None, num_samples=None, num_features=None, gpu_i
     else:
         model = DiT(
             input_size=(height, width),
-            patch_size=2,
+            patch_size=1,
             in_channels=1,
             hidden_size=256,
             depth=12,
