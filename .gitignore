@@ -172,3 +172,7 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+.jupyter_ystore.db
+
+/samples
+/model_results
