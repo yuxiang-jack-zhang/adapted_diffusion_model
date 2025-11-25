@@ -45,9 +45,9 @@ DIM_MULTS_MINIMAL = (1,)           # For very small inputs
 
 # Diffusion parameters
 TIMESTEPS = 200
-SAMPLING_TIMESTEPS = 50   # Number of steps used for DDIM sampling (set >= TIMESTEPS to disable DDIM)
+SAMPLING_TIMESTEPS = 10   # Number of steps used for DDIM sampling (set >= TIMESTEPS to disable DDIM)
 DDIM_ETA = 0.0            # Noise weight for DDIM (0.0 makes sampling deterministic)
-OBJECTIVE = 'pred_noise'
+OBJECTIVE = 'pred_x0'
 BETA_SCHEDULE = 'cosine'
 AUTO_NORMALIZE = False
 
@@ -63,7 +63,7 @@ COSINE_CYCLE_LENGTH = 400  # T_0 (initial cycle length)
 T_MULT = 1                 # T_mult for scheduler
 COSINE_STEPS = 400         # Cosine annealing steps (same as T_0 by default)
 COSINE_LR_MIN = 1e-05      # ETA_MIN
-GRADIENT_ACCUMULATION = 1
+GRADIENT_ACCUMULATION = 2
 EMA_DECAY = 0.999
 SPLIT_BATCHES = False
 SAVE_INTERVAL = 100       # Save checkpoint every N epochs
