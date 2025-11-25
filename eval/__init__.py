@@ -27,7 +27,7 @@ from eval.ft_portfolio_eval import (
     calculate_FF_tangent_portfolio,
     calculate_Emp_tangent_portfolio,
     calculate_POET_tangent_portfolio,
-    plot_cumulative_log_returns
+    # plot_cumulative_log_returns
 )
 
 __all__ = [
