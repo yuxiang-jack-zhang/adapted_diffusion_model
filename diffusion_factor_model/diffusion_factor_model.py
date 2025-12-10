@@ -1187,6 +1187,12 @@ class SequentialGaussianDiffusion(Module):
             extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
         )
 
+    def predict_v(self, x_start, t, noise):
+        return (
+            extract(self.sqrt_alphas_cumprod, t, x_start.shape) * noise -
+            extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * x_start
+        )
+
     def predict_start_from_noise(self, x_t, t, noise):
         return (
             extract(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t -
