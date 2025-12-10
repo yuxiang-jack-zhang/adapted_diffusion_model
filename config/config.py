@@ -32,7 +32,7 @@ MODEL_FILTER_SIZE = 7     # Filter size for convolutions
 # Transformer parameters
 TRANSFORMER_DIM = 256
 TRANSFORMER_LAYERS = 8
-TRANSFORMER_HEADS = 8
+TRANSFORMER_HEADS = 4
 TRANSFORMER_FF_MULT = 2
 TRANSFORMER_DROPOUT = 0.1
 
@@ -45,35 +45,35 @@ DIM_MULTS_MINIMAL = (1,)           # For very small inputs
 
 # Diffusion parameters
 TIMESTEPS = 200
-SAMPLING_TIMESTEPS = 10   # Number of steps used for DDIM sampling (set >= TIMESTEPS to disable DDIM)
+SAMPLING_TIMESTEPS = 20   # Number of steps used for DDIM sampling (set >= TIMESTEPS to disable DDIM)
 DDIM_ETA = 0.0            # Noise weight for DDIM (0.0 makes sampling deterministic)
 OBJECTIVE = 'pred_x0'
 BETA_SCHEDULE = 'cosine'
 AUTO_NORMALIZE = False
 
 # Training parameters
-BATCH_SIZE = 512
-LEARNING_RATE = 3e-4
-EPOCHS = 1000
+BATCH_SIZE = 128
+LEARNING_RATE = 7e-5
+EPOCHS = 3000
 WEIGHT_DECAY = 0.01
 USE_COSINE_SCHEDULER = True
 USE_WARM_UP = True
-WARMUP_STEPS = 20
-COSINE_CYCLE_LENGTH = 400  # T_0 (initial cycle length)
+WARMUP_STEPS = 600
+COSINE_CYCLE_LENGTH = 1400  # T_0 (initial cycle length)
 T_MULT = 1                 # T_mult for scheduler
-COSINE_STEPS = 400         # Cosine annealing steps (same as T_0 by default)
-COSINE_LR_MIN = 1e-05      # ETA_MIN
-GRADIENT_ACCUMULATION = 2
-EMA_DECAY = 0.999
+COSINE_STEPS = 1400         # Cosine annealing steps (same as T_0 by default)
+COSINE_LR_MIN = 1e-06      # ETA_MIN
+GRADIENT_ACCUMULATION = 1
+EMA_DECAY = 0.995
 SPLIT_BATCHES = False
 SAVE_INTERVAL = 100       # Save checkpoint every N epochs
 
 # Sampling parameters
-SAMPLE_BATCHES = 64       # Number of batches to sample
+SAMPLE_BATCHES = 32       # Number of batches to sample
 SAMPLES_PER_BATCH = 128   # Number of samples per batch
 SAVE_TIMESTEPS = None     # For sequential sampling, defaults to final output only
 SAMPLE_WINDOW_START = 0   # Default start index for sequential sampling windows
-SAMPLE_WINDOW_LENGTH = 32 # Number of sequential indices to generate by default (capped by sequence length)
+SAMPLE_WINDOW_LENGTH = None # Number of sequential indices to generate by default (capped by sequence length)
 
 # Mixed precision settings
 USE_AMP = True            # Mixed precision training
