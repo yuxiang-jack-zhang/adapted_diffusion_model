@@ -208,6 +208,7 @@ def train_model(
     )
 
     print("Trainer initialized")
+    print(f"Models saved to: {model_dir}")
 
     if checkpoint_path:
         if not os.path.isfile(checkpoint_path):
@@ -229,6 +230,7 @@ def train_model(
     
     # Generate samples
     print("Generating samples...")
+    print(f"Samples saved to: {sample_dir}")
     sample_batches = config.SAMPLE_BATCHES
     samples_per_batch = config.SAMPLES_PER_BATCH
     
