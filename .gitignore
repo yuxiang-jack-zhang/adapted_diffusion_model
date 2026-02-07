@@ -188,4 +188,5 @@ model_results/
 samples/
 
 *.npy
->>>>>>> origin/main
+/data
+/figs
