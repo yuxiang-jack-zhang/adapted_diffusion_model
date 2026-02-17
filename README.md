@@ -1,14 +1,18 @@
 # Diffusion Factor Model
 
-<p align="center">
+<!-- <p align="center">
   <img src="assets/demo.png" alt="Diffusion Factor Model demo" width="700"/>
-</p>
+</p> -->
 
-A sequential diffusion framework for modeling and generating high-dimensional financial return series with latent factor structure.
+A sequential diffusion framework for modeling and generating sequential data with applications in finance.
+
+This repository builds upon [diffusion factor model](https://github.com/xymmmm00/diffusion_factor_model).
+
+
 
 ## Overview
 
-This repository trains a **conditional transformer + Gaussian diffusion** model on `.npy` return data and generates synthetic samples for downstream analysis (distribution matching, factor recovery, and portfolio evaluation).
+This repository trains a **transformer + sequential Gaussian diffusion** model downstream finantial applications (distribution matching, ARMA models, Gaussian processes and mean-variance portfolio optimization).
 
 Compared with earlier versions in the commit history, the current training workflow adds:
 
@@ -36,8 +40,8 @@ Compared with earlier versions in the commit history, the current training workf
 ## Installation
 
 ```bash
-git clone https://github.com/xymmmm00/diffusion_factor_model.git
-cd diffusion_factor_model
+git clone https://github.com/yinbinhan/adapted_diffusion_model.git
+cd adapted_diffusion_model
 pip install -r requirements.txt
 ```
 
@@ -135,15 +139,15 @@ Evaluation utilities live in `eval/`, including:
 - `ft_portfolio_eval.py` for factor-timing portfolio evaluation
 - notebooks (`ARMA.ipynb`, `GP.ipynb`, `QQplot.ipynb`) for exploratory analyses
 
-<p align="center">
+<!-- <p align="center">
   <img src="assets/distribution_example.png" alt="distribution example" width="700"/>
 </p>
 
 <p align="center">
   <img src="assets/portfolio_example.png" alt="portfolio example" width="700"/>
-</p>
+</p> -->
 
-## Citation
+<!-- ## Citation
 
 ```bibtex
 @article{chen2025diffusion,
@@ -152,4 +156,4 @@ Evaluation utilities live in `eval/`, including:
   journal={arXiv preprint arXiv:2504.06566},
   year={2025}
 }
-```
+``` -->
