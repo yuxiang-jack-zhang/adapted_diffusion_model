@@ -1,4 +1,4 @@
-# Diffusion Factor Model
+# Sequential Diffusion Model
 
 <!-- <p align="center">
   <img src="assets/demo.png" alt="Diffusion Factor Model demo" width="700"/>
